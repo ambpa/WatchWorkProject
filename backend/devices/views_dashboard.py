@@ -1,0 +1,83 @@
+from django.shortcuts import render
+from django.db.models import Count
+from .models import Device
+from django.shortcuts import get_object_or_404
+from measurements.models import Measurement
+
+from django.http import JsonResponse
+from django.utils.dateparse import parse_datetime
+
+def device_list_view(request):
+    devices = (
+        Device.objects
+        .annotate(
+            sessions_count=Count("sessions"),
+            measurements_count=Count("measurements")
+        )
+        .order_by("-created_at")
+    )
+
+    return render(request, "dashboard/device_list.html", {
+        "devices": devices
+    })
+
+def device_detail_view(request, device_id):
+    device = get_object_or_404(Device, id=device_id)
+
+    sessions = device.sessions.order_by("-started_at")
+
+    data_types = (
+        Measurement.objects
+        .filter(device=device)
+        .values_list("data_type", flat=True)
+        .distinct()
+    )
+
+    return render(request, "dashboard/device_detail.html", {
+        "device": device,
+        "sessions": sessions,
+        "data_types": data_types,
+    })
+
+
+def device_measurements_chart(request, device_id):
+    device = get_object_or_404(Device, id=device_id)
+    data_type = request.GET.get("data_type")
+    since = request.GET.get("since")
+
+    if not data_type:
+        return JsonResponse({"labels": [], "datasets": []})
+
+    measurements = Measurement.objects.filter(
+        device=device,
+        data_type=data_type
+    )
+
+    if since:
+        measurements = measurements.filter(timestamp__gt=parse_datetime(since))
+
+    measurements = measurements.order_by("timestamp")
+
+    labels = [m.timestamp.isoformat() for m in measurements]
+
+    datasets = []
+
+    ACC_SCALE = 8192
+
+    if data_type in ("raw_motion", "processed_motion"):
+        for axis in ("ax", "ay", "az"):
+            datasets.append({
+                "label": axis.upper(),
+                "data": [m.payload.get(axis, 0) / ACC_SCALE for m in measurements]
+            })
+
+    else:
+        datasets.append({
+            "label": data_type,
+            "data": [m.payload for m in measurements]
+        })
+
+    return JsonResponse({
+        "labels": labels[-100:],
+        "datasets": datasets[-100:]
+    })

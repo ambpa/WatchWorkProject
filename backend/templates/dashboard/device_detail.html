@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">📊 Device: {{ device }}</h1>
+
+    <div class="row mb-4">
+        <div class="col-md-6 offset-md-3">
+            <label for="dataTypeSelect" class="form-label fw-bold">Seleziona tipo dato:</label>
+            <select id="dataTypeSelect" class="form-select form-select-lg shadow-sm" name="data_type" data-url="{% url 'device_chart' device.id %}">
+                <option value="" selected>-- scegli un tipo --</option>
+                {% for dt in data_types %}
+                    <option value="{{ dt }}">{{ dt }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="card shadow-lg border-0">
+        <div class="card-body">
+            <div class="position-relative chart-container">
+                <canvas id="chartCanvas"></canvas>
+                <div id="loadingSpinner" class="position-absolute top-50 start-50 translate-middle" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Caricamento...</span>
+                    </div>
+                </div>
+            </div>
+            <div id="noDataMessage" class="alert alert-info text-center mt-3" style="display: none;">
+                <i class="bi bi-info-circle"></i> Nessun dato disponibile per questo tipo.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap Icons (se non già presenti in base.html) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Script personalizzato -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+
+const canvas = document.getElementById('chartCanvas');
+const ctx = canvas.getContext('2d');
+const select = document.getElementById('dataTypeSelect');
+const spinner = document.getElementById('loadingSpinner');
+const noDataMsg = document.getElementById('noDataMessage');
+
+let lastTimestamp = null;
+let refreshTimer = null;
+
+const MAX_POINTS = 120;
+const REFRESH_RATE = 500;
+
+const colorPalette = [
+    '#ff6384',
+    '#36a2eb',
+    '#ffce56',
+    '#4bc0c0',
+    '#9966ff',
+    '#ff9f40'
+];
+
+let chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: []
+    },
+    options: {
+        animation: false,
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+            mode: 'nearest',
+            axis: 'x',
+            intersect: false
+        },
+        plugins: {
+            legend: { position: 'top' }
+        },
+        scales: {
+            x: {
+                ticks: {
+                    maxRotation: 0
+                }
+            },
+            y: {
+                min: -2,
+                max: 2
+            }
+        }
+    }
+});
+
+function resetChart(){
+    chartInstance.data.labels = [];
+    chartInstance.data.datasets = [];
+    chartInstance.update();
+}
+
+function createDatasets(datasets){
+
+    chartInstance.data.datasets = datasets.map((ds, i) => ({
+        label: ds.label,
+        data: [],
+        borderColor: colorPalette[i % colorPalette.length],
+        backgroundColor: colorPalette[i % colorPalette.length] + "33",
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.25
+    }));
+
+}
+
+async function fetchData(initial=false){
+
+    const dataType = select.value;
+    if(!dataType) return;
+
+    let url = select.dataset.url + '?data_type=' + encodeURIComponent(dataType);
+
+    if(!initial && lastTimestamp){
+        url += '&since=' + encodeURIComponent(lastTimestamp);
+    }
+
+    const response = await fetch(url);
+    const result = await response.json();
+
+    if(!result.labels || result.labels.length === 0) return;
+
+    if(initial){
+        createDatasets(result.datasets);
+    }
+
+    result.labels.forEach((label, index) => {
+
+        chartInstance.data.labels.push(new Date(label).toLocaleTimeString());
+
+        chartInstance.data.datasets.forEach((dataset, i) => {
+            dataset.data.push(result.datasets[i].data[index]);
+        });
+
+    });
+
+    lastTimestamp = result.labels[result.labels.length-1];
+
+    while(chartInstance.data.labels.length > MAX_POINTS){
+
+        chartInstance.data.labels.shift();
+
+        chartInstance.data.datasets.forEach(d => d.data.shift());
+
+    }
+
+    chartInstance.update('none');
+}
+
+async function startLiveChart(){
+
+    if(refreshTimer) clearInterval(refreshTimer);
+
+    resetChart();
+    lastTimestamp = null;
+
+    spinner.style.display = "block";
+
+    await fetchData(true);
+
+    spinner.style.display = "none";
+
+    refreshTimer = setInterval(fetchData, REFRESH_RATE);
+
+}
+
+select.addEventListener('change', startLiveChart);
+
+});
+</script>
+
+<!-- Stili aggiuntivi -->
+<style>
+    .container {
+        max-width: 1000px;
+    }
+    .form-select {
+        cursor: pointer;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+    .form-select:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    .card {
+        border-radius: 1rem;
+        overflow: hidden;
+    }
+    .position-relative {
+        min-height: 400px;
+    }
+    #noDataMessage i {
+        margin-right: 0.5rem;
+    }
+</style>
+{% endblock %}
