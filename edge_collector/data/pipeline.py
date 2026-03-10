@@ -1,5 +1,5 @@
 # data/pipeline.py
-from ble.payloads.registry import PAYLOAD_DECODERS
+from ..ble.payloads.registry import PAYLOAD_DECODERS
 
 
 class DataPipeline:
@@ -33,6 +33,7 @@ class DataPipeline:
         self.store.save(decoded)
 
         # Invio backend (se online)
+        print(self.backend_client)
         if self.backend_client:
             await self.backend_client.send_data(decoded)
 

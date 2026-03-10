@@ -7,7 +7,7 @@ class ProcessedMotionDecoder(BLEPayloadDecoder):
 
     def decode(self, payload: bytes) -> dict:
         if len(payload) != 6:
-            print(len(payload), payload)
+            #print(len(payload), payload)
             return None
             raise ValueError("Invalid ProcessedMotion payload length")
 
@@ -48,7 +48,7 @@ class RawBiometricDecoder(BLEPayloadDecoder):
     payload_type = "raw_biometric"
 
     def decode(self, payload: bytes):
-        print(payload)
+        #print(payload)
         if len(payload) != 36:
             return None
 

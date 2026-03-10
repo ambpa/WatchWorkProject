@@ -47,10 +47,10 @@ class BackendSessionClient:
         if not self.session_id:
             return
         if data is None:
-            print("⚠️ Data is None, skipping send")
+            #print("⚠️ Data is None, skipping send")
             return
 
-        print(data)
+        #print(data)
         payload = {
             "session_id": self.session_id,
             "data_type": data.get("type"),

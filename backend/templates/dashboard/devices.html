@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>BLE Devices Dashboard</h1>
+
+<div id="devices-container"></div>
+
+<script>
+
+async function loadDevices() {
+
+    const response = await fetch("/api/dashboard/devices_connected/");
+    const data = await response.json();
+
+    console.log("devices response:", data);
+
+    const devices = data.devices || data;
+
+    const container = document.getElementById("devices-container");
+    container.innerHTML = "";
+
+    devices.forEach(device => {
+
+        const card = document.createElement("div");
+
+        card.style.border = "1px solid #ccc";
+        card.style.padding = "15px";
+        card.style.marginBottom = "15px";
+        card.style.borderRadius = "8px";
+
+        let html = `
+            <h3>${device.address}</h3>
+            <p><b>State:</b> ${device.state}</p>
+        `;
+
+        if (device.state === "ACTIVE") {
+            html += `
+            <button onclick="disconnectDevice('${device.address}')">
+                Disconnect
+            </button>
+            `;
+        }
+
+        html += "<h4>Characteristics</h4>";
+
+        for (const [name, enabled] of Object.entries(device.characteristics)) {
+
+            html += `
+                <div style="margin-bottom:5px;">
+                    ${name}
+                    <button onclick="toggleCharacteristic(
+                        '${device.address}',
+                        '${name}',
+                        ${!enabled}
+                    )">
+                        ${enabled ? "Disable" : "Enable"}
+                    </button>
+                </div>
+            `;
+        }
+
+        card.innerHTML = html;
+        container.appendChild(card);
+    });
+}
+
+async function toggleCharacteristic(address, char, enabled) {
+
+    await fetch("/api/ble/toggle_characteristic/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: JSON.stringify({
+            address: address,
+            characteristic: char,
+            enabled: enabled
+        })
+    });
+
+    loadDevices();
+}
+
+async function disconnectDevice(address) {
+
+    await fetch("/api/ble/disconnect_device/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: JSON.stringify({
+            address: address
+        })
+    });
+
+    loadDevices();
+}
+
+/* aggiornamento automatico */
+
+setInterval(loadDevices, 2000);
+
+loadDevices();
+
+</script>
+
+{% endblock %}

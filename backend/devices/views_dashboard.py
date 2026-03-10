@@ -3,6 +3,8 @@ from django.db.models import Count
 from .models import Device
 from django.shortcuts import get_object_or_404
 from measurements.models import Measurement
+import asyncio
+from edge_collector.ble.real_ble_client import RealBLEClient  # o dove si trova realmente
 
 from django.http import JsonResponse
 from django.utils.dateparse import parse_datetime
@@ -22,6 +24,30 @@ def device_list_view(request):
     })
 
 def device_detail_view(request, device_id):
+    device = get_object_or_404(Device, id=device_id)
+
+    # Recupera BLE device dalla sessione
+    ble_name = request.session.get("ble_device_name")
+    ble_address = request.session.get("ble_device_address")
+
+    sessions = device.sessions.order_by("-started_at")
+    data_types = Measurement.objects.filter(device=device).values_list("data_type", flat=True).distinct()
+
+    # Se il device BLE è presente, connettiamo il client (edge_collector)
+    if ble_address:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        RealBLEClient.device = type("BLEDevice", (), {"name": ble_name, "address": ble_address})()
+        loop.run_until_complete(RealBLEClient.connect())
+        loop.run_until_complete(RealBLEClient.subscribe())
+
+    return render(request, "dashboard/device_detail.html", {
+        "device": device,
+        "sessions": sessions,
+        "data_types": data_types,
+    })
+
+def device_detail_view2(request, device_id):
     device = get_object_or_404(Device, id=device_id)
 
     sessions = device.sessions.order_by("-started_at")
