@@ -200,3 +200,11 @@ class BLEStateMachine:
         print("Writing characteristic:", list(value))
 
         await self.ble.write_raw_enable_realtime(value)
+
+    async def write_raw_enable_realtime(self, value):
+
+        if not self.ble:
+            print("[SM] no BLE client")
+            return
+
+        await self.ble.write_raw_enable_realtime(value)

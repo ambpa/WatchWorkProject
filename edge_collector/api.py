@@ -6,7 +6,12 @@ import asyncio
 app = FastAPI()
 connected_devices = {}
 
-
+CHAR_INDEX = {
+    "motion": 0,
+    "biometric": 1,
+    "air": 2,
+    "gnss": 3
+}
 
 class DeviceRequest(BaseModel):
     address: str
@@ -62,8 +67,8 @@ async def get_devices():
     }
 
 
-@app.post("/characteristic")
-async def write_characteristic(req: CharacteristicRequest):
+@app.post("/characteristic2")
+async def write_characteristic_old(req: CharacteristicRequest):
 
     address = req.address
     char = req.characteristic
@@ -75,5 +80,38 @@ async def write_characteristic(req: CharacteristicRequest):
 
     if address in connected_devices:
         connected_devices[address]["characteristics"][char] = enabled
+
+    return {"status": "ok"}
+
+@app.post("/characteristic")
+async def write_characteristic(req: CharacteristicRequest):
+
+    address = req.address
+    char = req.characteristic
+    enabled = req.enabled
+
+    print("Characteristic request:", address, char, enabled)
+
+    if address not in connected_devices:
+        return {"error": "device not found"}
+
+    if char not in CHAR_INDEX:
+        return {"error": "invalid characteristic"}
+
+    # aggiorna stato interno
+    connected_devices[address]["characteristics"][char] = enabled
+
+    chars = connected_devices[address]["characteristics"]
+
+    value = bytearray([
+        1 if chars["motion"] else 0,
+        1 if chars["biometric"] else 0,
+        1 if chars["air"] else 0,
+        1 if chars["gnss"] else 0
+    ])
+
+    print("Writing bytearray:", list(value))
+
+    await state_machine.write_raw_enable_realtime(value)
 
     return {"status": "ok"}
