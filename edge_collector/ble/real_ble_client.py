@@ -30,7 +30,18 @@ class RealBLEClient:
 
         try:
 
-            self.client = BleakClient(self.device.address)
+            def handle_disconnect(client):
+                print("[BLE] disconnected callback triggered")
+
+                if self.event_queue:
+                    asyncio.create_task(
+                        self.event_queue.put(Event.DISCONNECTED)
+                    )
+
+            self.client = BleakClient(
+                self.device.address,
+                disconnected_callback=handle_disconnect  # 🔥 QUI
+            )
 
             await self.client.connect()
 
@@ -87,7 +98,7 @@ class RealBLEClient:
 
     def _notification_handler(self, sender, data):
 
-        print(f"[BLE] notification from {sender}: {data}")
+        #print(f"[BLE] notification from {sender}: {data}")
 
         if self.data_pipeline:
 
@@ -99,6 +110,10 @@ class RealBLEClient:
 
         if not self.client or not self.client.is_connected:
             print("[BLE] write failed: device not connected")
+
+            if self.event_queue:
+                await self.event_queue.put(Event.DISCONNECTED)
+
             return
 
         try:
@@ -120,6 +135,12 @@ class RealBLEClient:
     async def cleanup(self):
 
         if self.client:
-            await self.client.disconnect()
+
+            try:
+                await self.client.disconnect()
+            except Exception:
+                pass
+
+            self.client = None
 
             print("[BLE] disconnected")

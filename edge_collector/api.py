@@ -59,6 +59,39 @@ async def connect(req: DeviceRequest):
     await state_machine.set_device(req.address)
     return {"status": "device selected"}
 
+@app.post("/disconnect")
+async def disconnect(req: DeviceRequest):
+
+    address = req.address
+
+    print("Disconnect request:", address)
+
+    if address not in connected_devices:
+        return {"error": "device not found"}
+
+    connected_devices[address]["characteristics"] = {
+        "motion": False,
+        "biometric": False,
+        "air": False,
+        "gnss": False
+    }
+
+    state_machine.device_configs[address] = {
+        "motion": False,
+        "biometric": False,
+        "air": False,
+        "gnss": False
+    }
+
+    # 🔥 chiama la state machine
+    await state_machine.disconnect()
+
+    # aggiorna stato UI (opzionale ma utile)
+    connected_devices[address]["state"] = "DISCONNECTING"
+
+    return {"status": "disconnecting"}
+
+
 @app.get("/devices")
 async def get_devices():
 
@@ -67,21 +100,21 @@ async def get_devices():
     }
 
 
-@app.post("/characteristic2")
-async def write_characteristic_old(req: CharacteristicRequest):
-
-    address = req.address
-    char = req.characteristic
-    enabled = req.enabled
-
-    print("Characteristic request:", address, char, enabled)
-
-    await state_machine.write_characteristic(char, enabled)
-
-    if address in connected_devices:
-        connected_devices[address]["characteristics"][char] = enabled
-
-    return {"status": "ok"}
+# @app.post("/characteristic2")
+# async def write_characteristic_old(req: CharacteristicRequest):
+#
+#     address = req.address
+#     char = req.characteristic
+#     enabled = req.enabled
+#
+#     print("Characteristic request:", address, char, enabled)
+#
+#     await state_machine.write_characteristic(char, enabled)
+#
+#     if address in connected_devices:
+#         connected_devices[address]["characteristics"][char] = enabled
+#
+#     return {"status": "ok"}
 
 @app.post("/characteristic")
 async def write_characteristic(req: CharacteristicRequest):
@@ -100,7 +133,7 @@ async def write_characteristic(req: CharacteristicRequest):
 
     # aggiorna stato interno
     connected_devices[address]["characteristics"][char] = enabled
-
+    state_machine.device_configs[address] = connected_devices[address]["characteristics"]
     chars = connected_devices[address]["characteristics"]
 
     value = bytearray([

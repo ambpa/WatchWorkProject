@@ -16,10 +16,9 @@
 <thead class="table-light">
 <tr>
     <th>Device ID</th>
-    <th>Name</th>
     <th>Status</th>
-    <th>Last Seen</th>
-    <th>Measurements</th>
+    <th>Session Start</th>
+    <th>Session End</th>
     <th class="text-end">Analytics</th>
 </tr>
 </thead>
@@ -34,13 +33,10 @@
     <strong>{{ device.device_id }}</strong>
 </td>
 
-<td>
-    {{ device.name|default:"—" }}
-</td>
 
 <td>
 
-{% if device.is_active %}
+{% if device.last_session_active %}
 <span class="badge bg-success">Active</span>
 {% else %}
 <span class="badge bg-secondary">Offline</span>
@@ -49,14 +45,13 @@
 </td>
 
 <td class="text-muted">
-    {{ device.last_seen|default:"—" }}
+    {{ device.last_started_at|default:"—" }}
 </td>
 
-<td>
-<span class="badge bg-light text-dark">
-    {{ device.measurements_count }}
-</span>
+<td class="text-muted">
+    {{ device.last_ended_at|default:"—" }}
 </td>
+
 
 <td class="text-end">
 

@@ -39,6 +39,15 @@ class BLEStateMachine:
             device_id=device_id
         )
 
+        # PARAMETRI RICONNESSIONE POST CADUTA BLE
+        self.manual_disconnect = False
+        self.max_retries = 2
+        self.retry_delay = 1
+
+        self.reconnect_task = None
+
+        self.device_configs = {}
+
     async def set_device(self, address):
         print("[BLE] device selected:", address)
         # salva address reale
@@ -59,6 +68,67 @@ class BLEStateMachine:
 
             await self._handle_event(event)
 
+    async def disconnect(self):
+
+        print("[BLE] manual disconnect")
+
+        self.manual_disconnect = True
+
+        # 🔥 STEP 1: spegni stream
+        if self.state == State.ACTIVE:
+            await self.stop_all_streams()
+            await asyncio.sleep(0.2)  # piccolo delay sicurezza
+
+        # 🔥 STEP 2: trigger state machine
+        await self.event_queue.put(Event.DISCONNECTED)
+
+    async def _reconnect_loop(self):
+
+        print("[BLE] starting reconnect loop")
+
+        if self.retry >= self.max_retries:
+            print("[BLE] max retries reached → IDLE")
+            await self._transition(State.IDLE)
+            return
+
+        delay = min(self.retry_delay * (2 ** self.retry), 10)
+
+        print(f"[BLE] retry {self.retry + 1}/{self.max_retries} in {delay}s")
+
+        await asyncio.sleep(delay)
+
+        if self.manual_disconnect:
+            print("[BLE] reconnect aborted (manual disconnect)")
+            return
+
+        print("[BLE] trying reconnect...")
+
+        await self._transition(State.CONNECTING)
+
+    async def stop_all_streams(self):
+
+        print("[BLE] stopping all streams")
+
+        value = bytearray([0, 0, 0, 0])
+
+        try:
+            await self.ble.write_raw_enable_realtime(value)
+            print("[BLE] all streams disabled")
+
+        except Exception as e:
+            print("[BLE] failed to stop streams:", e)
+
+    def get_current_config(self):
+
+        return self.device_configs.get(
+            self.device_address,
+            {
+                "motion": False,
+                "biometric": False,
+                "air": False,
+                "gnss": False
+            }
+        )
 
     async def _handle_event(self, event):
 
@@ -74,14 +144,15 @@ class BLEStateMachine:
 
             if event == Event.CONNECT_OK:
 
+                self.retry = 0  # reset
                 await self._transition(State.CONNECTED)
 
             elif event == Event.CONNECT_FAIL:
 
+                self.retry += 1  # QUI
                 await self._transition(State.ERROR)
 
         elif self.state == State.CONNECTED:
-
             if event == Event.SERVICES_OK:
 
                 await self._transition(State.SUBSCRIBED)
@@ -93,18 +164,34 @@ class BLEStateMachine:
                 await self._transition(State.ACTIVE)
 
         elif self.state == State.ACTIVE:
+            #reimposto parametri reconnect post caduta BLE
+            if event != Event.DISCONNECTED:
+                self.retry = 0
+                self.manual_disconnect = False
 
             if event == Event.DISCONNECTED:
 
-                await self._transition(State.ERROR)
+                if self.manual_disconnect:
+                    print("[BLE] manual disconnect → IDLE")
 
-        elif self.state == State.ERROR:
+                    await self.backend_session.stop()
+                    await self.ble.cleanup()
 
-            await asyncio.sleep(min(2 ** self.retry, 10))
+                    await self._transition(State.IDLE)
+                else:
+                    print("[BLE] unexpected disconnect → ERROR")
+                    await self._transition(State.ERROR)
 
-            self.retry += 1
+        elif self.state == State.IDLE:
 
-            await self._transition(State.CONNECTING)
+            if event == Event.DEVICE_SELECTED:
+                print("[BLE] restarting from IDLE")
+
+                self.manual_disconnect = False
+                self.retry = 0
+
+                await self._transition(State.CONNECTING)
+
 
     async def _transition(self, new_state):
 
@@ -138,10 +225,25 @@ class BLEStateMachine:
 
             await self.backend_session.start()
 
-            # 🔴 collega pipeline al backend
+            # collega pipeline al backend
 
             if hasattr(self.ble, "data_pipeline"):
                 self.ble.data_pipeline.backend_client = self.backend_session
+
+
+            config = self.get_current_config()
+
+            value = bytearray([
+                1 if config["motion"] else 0,
+                1 if config["biometric"] else 0,
+                1 if config["air"] else 0,
+                1 if config["gnss"] else 0
+            ])
+
+            print("[BLE] restoring config:", list(value))
+
+            await self.ble.write_raw_enable_realtime(value)
+
 
             asyncio.create_task(self._heartbeat_loop())
 
@@ -155,6 +257,11 @@ class BLEStateMachine:
 
             await self.ble.cleanup()
 
+            # 🔥 avvia retry automatico
+            if not self.manual_disconnect:
+                if self.reconnect_task is None or self.reconnect_task.done():
+                    self.reconnect_task = asyncio.create_task(self._reconnect_loop())
+
     async def on_active(self):
 
         if hasattr(self.ble, "data_pipeline"):
@@ -164,7 +271,8 @@ class BLEStateMachine:
     async def _heartbeat_loop(self):
 
         while self.state == State.ACTIVE:
-
+            # if self.state.is_connected:
+            print("[BLE] connected")
             await asyncio.sleep(10)
 
             await self.backend_session.heartbeat()

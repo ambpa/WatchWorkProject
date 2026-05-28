@@ -39,7 +39,7 @@ async def scan_devices(request):
     """
     Scansiona i dispositivi BLE visibili e restituisce JSON con name e address.
     """
-    devices = await BleakScanner.discover(timeout=5)
+    devices = await BleakScanner.discover(timeout=1)
     print(devices)
     result = [
         {"name": d.name or "Unknown", "address": d.address}
@@ -55,29 +55,30 @@ def ble_device_list_view(request):
     """
     Mostra i BLE devices disponibili e permette di selezionarne uno.
     """
-    devices = []
+    # devices = []
+    #
+    # async def scan_devices():
+    #     found = []
+    #     print('why?')
+    #     # scan BLE usando BleakScanner
+    #     from bleak import BleakScanner
+    #     ble_devices = await BleakScanner.discover(timeout=2)
+    #     for d in ble_devices:
+    #         found.append({"name": d.name or "Unknown", "address": d.address})
+    #     return found
+    #
+    # loop = asyncio.new_event_loop()
+    # asyncio.set_event_loop(loop)
+    # devices = loop.run_until_complete(scan_devices())
 
-    async def scan_devices():
-        found = []
-        # scan BLE usando BleakScanner
-        from bleak import BleakScanner
-        ble_devices = await BleakScanner.discover(timeout=5)
-        for d in ble_devices:
-            found.append({"name": d.name or "Unknown", "address": d.address})
-        return found
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    devices = loop.run_until_complete(scan_devices())
-
-    return render(request, "dashboard/ble_device_list.html", {"devices": devices})
+    return render(request, "dashboard/ble_device_list.html")#, {"devices": devices})
 
 def devices_dashboard(request):
 
     r = requests.get(f"{EDGE_URL}/devices")
 
     devices = r.json().get("devices", [])
-
+    print(devices)
     return render(
         request,
         "dashboard/devices.html",
@@ -94,17 +95,25 @@ def devices(request):
 
     return JsonResponse(r.json())
 
+
 @csrf_exempt
 def disconnect_device(request):
 
-    address = request.POST.get("address")
+    data = json.loads(request.body)
 
-    requests.post(
-        f"{EDGE_URL}/disconnect",
-        json={"address": address}
-    )
+    address = data.get("address")
 
-    return redirect("/devices")
+    try:
+        r = requests.post(
+            f"{EDGE_URL}/disconnect",
+            json={"address": address}
+        )
+        print("disconnected : ", r)
+
+        return JsonResponse(r.json())
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 @csrf_exempt
 def toggle_characteristic(request):
@@ -127,25 +136,25 @@ def toggle_characteristic(request):
     return JsonResponse(r.json())
 
 
-@csrf_exempt
-def toggle_characteristic2(request):
-
-    address = request.POST.get("address")
-    char = request.POST.get("characteristic")
-    action = request.POST.get("action")
-
-    enabled = action == "enable"
-
-    requests.post(
-        f"{EDGE_URL}/characteristic",
-        json={
-            "address": address,
-            "characteristic": char,
-            "enabled": enabled
-        }
-    )
-
-    return redirect("/api/dashboard/devices/")
+# @csrf_exempt
+# def toggle_characteristic2(request):
+#
+#     address = request.POST.get("address")
+#     char = request.POST.get("characteristic")
+#     action = request.POST.get("action")
+#
+#     enabled = action == "enable"
+#
+#     requests.post(
+#         f"{EDGE_URL}/characteristic",
+#         json={
+#             "address": address,
+#             "characteristic": char,
+#             "enabled": enabled
+#         }
+#     )
+#
+#     return redirect("/api/dashboard/devices/")
 
 # def select_ble_device(request):
 #     """

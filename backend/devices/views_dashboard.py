@@ -1,8 +1,6 @@
-from os import name
-
+from django.db.models import OuterRef, Subquery
 from django.shortcuts import render
-from django.db.models import Count
-from .models import Device
+from .models import Device, DeviceSession
 from django.shortcuts import get_object_or_404
 from measurements.models import Measurement
 import asyncio
@@ -12,14 +10,16 @@ from django.http import JsonResponse
 from django.utils.dateparse import parse_datetime
 
 def device_list_view(request):
-    devices = (
-        Device.objects
-        .annotate(
-            sessions_count=Count("sessions"),
-            measurements_count=Count("measurements")
-        )
-        .order_by("-created_at")
-    )
+
+    last_session = DeviceSession.objects.filter(
+        device=OuterRef("pk")
+    ).order_by("-started_at")
+
+    devices = Device.objects.annotate(
+        last_started_at=Subquery(last_session.values("started_at")[:1]),
+        last_ended_at=Subquery(last_session.values("ended_at")[:1]),
+        last_session_active=Subquery(last_session.values("is_active")[:1]),
+    ).order_by("-created_at")
 
     return render(request, "dashboard/device_list.html", {
         "devices": devices
@@ -49,23 +49,23 @@ def device_detail_view(request, device_id):
         "data_types": data_types,
     })
 
-def device_detail_view2(request, device_id):
-    device = get_object_or_404(Device, id=device_id)
-
-    sessions = device.sessions.order_by("-started_at")
-
-    data_types = (
-        Measurement.objects
-        .filter(device=device)
-        .values_list("data_type", flat=True)
-        .distinct()
-    )
-
-    return render(request, "dashboard/device_detail.html", {
-        "device": device,
-        "sessions": sessions,
-        "data_types": data_types,
-    })
+# def device_detail_view2(request, device_id):
+#     device = get_object_or_404(Device, id=device_id)
+#
+#     sessions = device.sessions.order_by("-started_at")
+#
+#     data_types = (
+#         Measurement.objects
+#         .filter(device=device)
+#         .values_list("data_type", flat=True)
+#         .distinct()
+#     )
+#
+#     return render(request, "dashboard/device_detail.html", {
+#         "device": device,
+#         "sessions": sessions,
+#         "data_types": data_types,
+#     })
 
 
 def device_measurements_chart(request, device_id):

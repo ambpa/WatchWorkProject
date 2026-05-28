@@ -35,8 +35,14 @@ class RawMotionDecoder(BLEPayloadDecoder):
         values = struct.unpack("<10h", payload[5:25])
         ax, ay, az = values[0:3]
 
+        epoch = struct.unpack("<I", payload[0:4])[0]
+        counter = payload[4]
+        num_samples = payload[5]
+
         return {
             "type": self.payload_type,
+            "epoch": epoch,
+            "counter": counter,
             "ax": ax,
             "ay": ay,
             "az": az,

@@ -27,6 +27,21 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
 
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    depends_on:
+      - db
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@watchwork.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
 volumes:
   timescale_data:
   grafana_data:
+  pgadmin_data:

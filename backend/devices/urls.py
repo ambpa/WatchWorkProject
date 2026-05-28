@@ -36,6 +36,6 @@ urlpatterns += [
     path('ble/connect/', views_ble.connect_device, name='ble_connect'),
     path('ble/devices/', views_ble.ble_device_list_view, name="ble_device_list"),
     path("ble/toggle_characteristic/", views_ble.toggle_characteristic, name="toggle_characteristic"),
-
+    path("ble/disconnect_device/", views_ble.disconnect_device, name="disconnect_device"),
     # path('ble/select/', views_ble.select_ble_device, name="select_ble_device"),
 ]

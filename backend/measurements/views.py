@@ -9,31 +9,57 @@ from devices.models import DeviceSession
 from .models import Measurement
 from .serializers import MeasurementInSerializer
 
+#
+# @api_view(["POST"])
+# def receive_data(request):
+#     serializer = MeasurementInSerializer(data=request.data)
+#     #print("Received data: ", serializer.data)
+#     if not serializer.is_valid():
+#         print("VALIDATION ERROR:", serializer.errors)
+#
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#
+#     session_id = serializer.validated_data["session_id"]
+#
+#     try:
+#         session = DeviceSession.objects.get(id=session_id, is_active=True)
+#     except DeviceSession.DoesNotExist:
+#         return Response(
+#             {"error": "Invalid or inactive session"},
+#             status=status.HTTP_400_BAD_REQUEST
+#         )
+#
+#     measurement = Measurement.objects.create(
+#         device=session.device,
+#         data_type=serializer.validated_data["data_type"],
+#         timestamp=serializer.validated_data["timestamp"],
+#         payload=serializer.validated_data["payload"]
+#     )
+#
+#     return Response({"status": "ok", "id": measurement.id})
+
 
 @api_view(["POST"])
 def receive_data(request):
-    serializer = MeasurementInSerializer(data=request.data)
-    #print("Received data: ", serializer.data)
-    if not serializer.is_valid():
-        print("VALIDATION ERROR:", serializer.errors)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    session_id = request.data["session_id"]
+    data_type = request.data["data_type"]
+    samples = request.data["samples"]
 
-    session_id = serializer.validated_data["session_id"]
+    session = DeviceSession.objects.get(id=session_id, is_active=True)
 
-    try:
-        session = DeviceSession.objects.get(id=session_id, is_active=True)
-    except DeviceSession.DoesNotExist:
-        return Response(
-            {"error": "Invalid or inactive session"},
-            status=status.HTTP_400_BAD_REQUEST
+    measurements = []
+
+    for s in samples:
+        measurements.append(
+            Measurement(
+                device=session.device,
+                data_type=data_type,
+                timestamp=s["timestamp"],
+                payload=s["payload"]
+            )
         )
 
-    measurement = Measurement.objects.create(
-        device=session.device,
-        data_type=serializer.validated_data["data_type"],
-        timestamp=serializer.validated_data["timestamp"],
-        payload=serializer.validated_data["payload"]
-    )
+    Measurement.objects.bulk_create(measurements, batch_size=500)
 
-    return Response({"status": "ok", "id": measurement.id})
+    return Response({"status": "ok"})
