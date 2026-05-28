@@ -1,39 +1,78 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1>Dispositivi</h1>
 
-<table border="1" cellpadding="8">
-    <thead>
-        <tr>
-            <th>Device ID</th>
-            <th>Name</th>
-            <th>Model</th>
-            <th>Active</th>
-            <th>Last Seen</th>
-            <th>Sessions</th>
-            <th>Measurements</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for device in devices %}
-        <tr>
-            <td>{{ device.device_id }}</td>
-            <td>{{ device.name }}</td>
-            <td>{{ device.model }}</td>
-            <td>{{ device.is_active }}</td>
-            <td>{{ device.last_seen }}</td>
-            <td>{{ device.sessions_count }}</td>
-            <td>{{ device.measurements_count }}</td>
-            <td>
-                <a href="{% url 'device_detail' device.id %}">
-                    Dettaglio
-                </a>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Device Inventory</h2>
+    <span class="text-muted">Registered WatchWork devices</span>
+</div>
+
+<div class="card shadow-sm">
+
+<div class="card-body p-0">
+
+<table class="table table-hover mb-0">
+
+<thead class="table-light">
+<tr>
+    <th>Device ID</th>
+    <th>Status</th>
+    <th>Session Start</th>
+    <th>Session End</th>
+    <th class="text-end">Analytics</th>
+</tr>
+</thead>
+
+<tbody>
+
+{% for device in devices %}
+
+<tr>
+
+<td>
+    <strong>{{ device.device_id }}</strong>
+</td>
+
+
+<td>
+
+{% if device.last_session_active %}
+<span class="badge bg-success">Active</span>
+{% else %}
+<span class="badge bg-secondary">Offline</span>
+{% endif %}
+
+</td>
+
+<td class="text-muted">
+    {{ device.last_started_at|default:"—" }}
+</td>
+
+<td class="text-muted">
+    {{ device.last_ended_at|default:"—" }}
+</td>
+
+
+<td class="text-end">
+
+<a href="{% url 'device_detail' device.id %}"
+   class="btn btn-sm btn-outline-primary">
+
+📊 Charts
+
+</a>
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
 </table>
+
+</div>
+</div>
 
 {% endblock %}

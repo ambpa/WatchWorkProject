@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>🔍 Seleziona dispositivo BLE</h1>
+    <button id="scanBtn" class="btn btn-primary mb-3">Scansiona dispositivi</button>
+
+        <form id="deviceForm" method="post" action="{% url 'ble_connect' %}" style="display:none;">
+            {% csrf_token %}
+            <input type="hidden" name="device_name" id="deviceName">
+            <input type="hidden" name="device_address" id="deviceAddress">
+        </form>
+
+    <ul id="deviceList" class="list-group"></ul>
+</div>
+
+<script>
+const scanBtn = document.getElementById('scanBtn');
+const deviceList = document.getElementById('deviceList');
+
+scanBtn.addEventListener('click', async () => {
+    deviceList.innerHTML = "<li class='list-group-item'>Scanning...</li>";
+
+    const resp = await fetch("{% url 'ble_scan' %}");
+    const devices = await resp.json();
+
+    deviceList.innerHTML = "";
+
+    if(devices.length === 0){
+        deviceList.innerHTML = "<li class='list-group-item text-danger'>Nessun dispositivo trovato</li>";
+        return;
+    }
+
+    devices.forEach(device => {
+        const li = document.createElement('li');
+        li.className = "list-group-item list-group-item-action";
+        li.textContent = `${device.name} (${device.address})`;
+
+        li.addEventListener('click', async () => {
+
+            const resp = await fetch("{% url 'ble_connect' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    address: device.address
+                })
+            });
+
+            const result = await resp.json();
+
+            alert("BLE: " + result.status);
+        });
+
+        deviceList.appendChild(li);
+    });
+});
+</script>
+{% endblock %}

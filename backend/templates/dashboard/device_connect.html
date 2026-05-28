@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1>📡 Scansione dispositivi BLE</h1>
+    <p>Seleziona un dispositivo per connetterti:</p>
+
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <select id="bleDeviceSelect" class="form-select">
+                <option value="">-- seleziona un device --</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button id="connectBtn" class="btn btn-primary">Connetti</button>
+        </div>
+    </div>
+
+    <div id="statusMsg" class="mt-3"></div>
+</div>
+
+<script>
+async function loadDevices() {
+    const select = document.getElementById('bleDeviceSelect');
+    const response = await fetch("/api/ble/scan/");
+    const devices = await response.json();
+
+    select.innerHTML = '<option value="">-- seleziona un device --</option>';
+    devices.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.address;
+        opt.textContent = `${d.name} (${d.address})`;
+        select.appendChild(opt);
+    });
+}
+
+document.getElementById('connectBtn').addEventListener('click', async () => {
+    const select = document.getElementById('bleDeviceSelect');
+    const address = select.value;
+    const statusMsg = document.getElementById('statusMsg');
+
+    if (!address) return alert("Seleziona un device");
+
+    statusMsg.textContent = "Connessione in corso...";
+    statusMsg.className = "text-info";
+
+    try {
+        const response = await fetch("/api/ble/connect/", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({address})
+        });
+        const result = await response.json();
+        statusMsg.textContent = result.status;
+        statusMsg.className = "text-success";
+    } catch (err) {
+        console.error(err);
+        statusMsg.textContent = "Errore durante la connessione";
+        statusMsg.className = "text-danger";
+    }
+});
+
+// Carica dispositivi al caricamento pagina
+loadDevices();
+</script>
+{% endblock %}

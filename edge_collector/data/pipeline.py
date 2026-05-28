@@ -1,5 +1,5 @@
 # data/pipeline.py
-from ble.payloads.registry import PAYLOAD_DECODERS
+from ..ble.payloads.registry import PAYLOAD_DECODERS
 
 
 class DataPipeline:
@@ -8,7 +8,7 @@ class DataPipeline:
         self.backend_client = backend_client
 
     async def handle_payload(self, payload: bytes):
-        print(f"[DATA] raw payload received: {payload}")
+        #print(f"[DATA] raw payload received: {payload}")
         if not isinstance(payload, (bytes, bytearray)):
             return
         # STEP A: hardcoded decoder
@@ -27,14 +27,17 @@ class DataPipeline:
             print(f"[DATA] decode error: {e}")
             return
 
-        print(f"[DATA] decoded payload: {decoded}")
+        #print(f"[DATA] decoded payload: {decoded}")
 
         # Persistenza locale (offline-first)
         self.store.save(decoded)
 
         # Invio backend (se online)
+        #print(self.backend_client)
         if self.backend_client:
-            await self.backend_client.send_data(decoded)
+            #await self.backend_client.send_data(decoded)
+            await self.backend_client.add_to_buffer(decoded)
+
 
     async def flush(self):
         for payload in self.store.load_all():

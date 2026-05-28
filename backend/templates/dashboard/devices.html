@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">BLE Live Devices</h2>
+    <span class="text-muted">Realtime IoT Monitoring</span>
+</div>
+
+<div class="row" id="devices-container"></div>
+
+
+<style>
+
+.device-indicator{
+    font-size:12px;
+    color:#666;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 22px;
+}
+
+.switch input {display:none;}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset:0;
+  background-color:#ccc;
+  transition:.3s;
+  border-radius:22px;
+}
+
+.slider:before {
+  position:absolute;
+  content:"";
+  height:16px;
+  width:16px;
+  left:3px;
+  bottom:3px;
+  background:white;
+  transition:.3s;
+  border-radius:50%;
+}
+
+input:checked + .slider {
+  background-color:#0d6efd;
+}
+
+input:checked + .slider:before {
+  transform:translateX(20px);
+}
+
+</style>
+
+
+<script>
+
+function getStateBadge(state){
+
+    if(state === "ACTIVE"){
+        return `<span class="badge bg-success">ACTIVE</span>`;
+    }
+
+    if(state === "CONNECTING"){
+        return `<span class="badge bg-warning text-dark">CONNECTING</span>`;
+    }
+
+    if(state === "ERROR"){
+        return `<span class="badge bg-danger">ERROR</span>`;
+    }
+
+    return `<span class="badge bg-secondary">${state}</span>`;
+}
+
+
+
+async function loadDevices(){
+
+    const response = await fetch("/api/dashboard/devices_connected/");
+    const data = await response.json();
+
+    const devices = data.devices || data;
+
+    const container = document.getElementById("devices-container");
+    container.innerHTML = "";
+
+    devices.forEach(device => {
+
+        const col = document.createElement("div");
+        col.className = "col-lg-4 col-md-6 mb-4";
+
+        let html = `
+
+        <div class="card shadow-sm h-100">
+
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="card-title mb-0">${device.address}</h5>
+                    ${getStateBadge(device.state)}
+                </div>
+
+                <div class="device-indicator mb-3">
+
+                    <div>Last update: <span id="last-${device.address}">now</span></div>
+                    <div>Packets/sec: <span class="text-muted">--</span></div>
+                    <div>RSSI: <span class="text-muted">--</span></div>
+
+                </div>
+
+                <hr>
+
+                <h6 class="text-muted mb-3">Realtime Characteristics</h6>
+        `;
+
+
+        for (const [name, enabled] of Object.entries(device.characteristics)){
+
+            html += `
+
+            <div class="d-flex justify-content-between align-items-center mb-2">
+
+                <span>${name}</span>
+
+                <label class="switch">
+                    <input type="checkbox"
+                        ${enabled ? "checked":""}
+                        onchange="toggleCharacteristic(
+                            '${device.address}',
+                            '${name}',
+                            this.checked
+                        )"
+                    >
+                    <span class="slider"></span>
+                </label>
+
+            </div>
+            `;
+        }
+
+        html += `</div>`;
+
+
+        if(device.state === "ACTIVE"){
+
+            html += `
+            <div class="card-footer bg-white border-top-0">
+
+                <button
+                    class="btn btn-outline-danger btn-sm w-100"
+                    onclick="disconnectDevice('${device.address}')"
+                >
+                    Disconnect Device
+                </button>
+
+            </div>
+            `;
+        }
+
+        html += `</div>`;
+
+        col.innerHTML = html;
+
+        container.appendChild(col);
+
+    });
+
+}
+
+
+
+async function toggleCharacteristic(address,char,enabled){
+
+    await fetch("/api/ble/toggle_characteristic/",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json",
+            "X-CSRFToken":"{{ csrf_token }}"
+        },
+        body:JSON.stringify({
+            address:address,
+            characteristic:char,
+            enabled:enabled
+        })
+    });
+
+}
+
+
+
+async function disconnectDevice(address){
+
+    await fetch("/api/ble/disconnect_device/",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json",
+            "X-CSRFToken":"{{ csrf_token }}"
+        },
+        body:JSON.stringify({
+            address:address
+        })
+    });
+
+}
+
+
+
+/* refresh realtime */
+
+setInterval(loadDevices,2000);
+
+loadDevices();
+
+</script>
+
+{% endblock %}

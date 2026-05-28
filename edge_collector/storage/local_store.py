@@ -28,7 +28,7 @@ class LocalStore:
             (time.time(), pickle.dumps(item)),
         )
         self.conn.commit()
-        print(f"[STORE] saved: {item}")
+        #print(f"[STORE] saved: {item}")
 
     def load_all(self):
         """Restituisce tutti gli oggetti salvati (decodificati)"""
